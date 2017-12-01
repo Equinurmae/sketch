@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "display.h"
 
-//prints the contents of th efile
+//prints the contents of thee file
 void print(FILE *f) {
     int i = 0;
     unsigned char ch = fgetc(f);
@@ -16,6 +16,17 @@ void print(FILE *f) {
     }
     if ((i % 16) != 0) printf("\n");
     printf("%08o\n",i);
+}
+
+//prints the contents of th efile
+void loop(FILE *f) {
+    int i = 0;
+    unsigned char ch = fgetc(f);
+    while (! feof(f)) {
+      printf("%02x\n", ch);
+      ch = fgetc(f);
+      i++;
+    }
 }
 
 //checks to see if the file can be opened
@@ -32,7 +43,7 @@ int main(int n, char *args[n]) {
     if (n > 1) {
       fopenCheck(args[1], "rb");
       FILE *in = fopen(args[1], "rb");
-      print(in);
+      loop(in);
       fclose(in);
     }
     return 0;
