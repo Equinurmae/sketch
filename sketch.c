@@ -8,26 +8,21 @@ struct state {
   int x, y, xp, yp;
   bool pen_down;
 };
-typedef struct state state;
-typedef enum {DX, DY, DT, PEN};
 
-//prints the contents of thee file
-void print(FILE *f) {
-    int i = 0;
-    unsigned char ch = fgetc(f);
-    while (! feof(f)) {
-      if ((i % 16) == 0) printf("%08o ", i);
-      if (((i+1) % 16) == 0) printf("%02x\n", ch);
-      else printf("%02x ", ch);
-      ch = fgetc(f);
-      i++;
-    }
-    if ((i % 16) != 0) printf("\n");
-    printf("%08o\n",i);
-}
+typedef struct state state;
+typedef enum {DX, DY, DT, EXT};
+typedef enum {PEN = 3, CLEAR, KEY, COL};
 
 int opcode(unsigned char x) {
     return (x >> 6);
+}
+
+int oplength(unsigned char x) {
+    return ((x >> 4) & 0x3);
+}
+
+int lopcode(unsigned char x) {
+    return (x & 0x0f);
 }
 
 int param(unsigned char x) {
@@ -40,6 +35,25 @@ int param(unsigned char x) {
     return c;
 }
 
+void opDX(state *s, unsigned char x) {
+    s->x += param(x);
+}
+
+void opDY(display *d, state *s, unsigned char x, int scalar) {
+    s->y += param(x);
+    if (s->pen_down) line(d, s->xp, s->yp, scalar*s->x, scalar*s->y);
+    s->xp = scalar*s->x;
+    s->yp = scalar*s->y;
+}
+
+void opDT(display *d, unsigned char x) {
+    pause(d, param(x));
+}
+
+void opPEN(state *s) {
+    s->pen_down = ! s->pen_down;
+}
+
 //does magic
 void loop(FILE *f) {
     state s = {0, 0, 0, 0, false};
@@ -50,24 +64,22 @@ void loop(FILE *f) {
 
     while (! feof(f)) {
       int op = opcode(ch);
-      if (op == DX) {
-        s.x += param(ch);
-        printf("Set x to %+d.\n", s.x);
-      } else if (op == DY) {
-        s.y += param(ch);
-        printf("Set y to %+d.\n", s.y);
-        if (s.pen_down) line(d, s.xp, s.yp, scalar*s.x, scalar*s.y);
-        printf("Draw a line.\n");
-        s.xp = scalar*s.x;
-        printf("Set xp to %+d\n", s.xp/scalar);
-        s.yp = scalar*s.y;
-        printf("Set yp to %+d\n", s.yp/scalar);
-      } else if (op == DT) {
-        pause(d, param(ch));
-        printf("Pause for %d ms.\n", param(ch));
-      } else if (op == PEN) {
-        s.pen_down = ! s.pen_down;
-        printf("Changed pen!\n");
+      switch(op) {
+        case DX:
+          opDX(&s, ch);
+          break;
+        case DY:
+          opDY(d, &s, ch, scalar);
+          break;
+        case DT:
+          opDT(d, ch);
+          break;
+        case EXT:
+          opPEN(&s);
+          int length = oplength(ch);
+          int lop = lopcode(ch);
+          printf("Length is %d and lopcode is %d\n", length, lop);
+          break;
       }
       ch = fgetc(f);
       i++;
