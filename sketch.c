@@ -36,7 +36,7 @@ signed int convert(int n, unsigned int y) {
 }
 
 //sign = true if the operand is supposed to be signed
-int param(unsigned char x, int n, bool sign) {
+int param(unsigned char x, bool sign) {
     unsigned int y = x & 0x3f;
     return (sign) ? convert(6, y) : y;
 }
@@ -51,7 +51,7 @@ int lparam (FILE *f, unsigned char x, int n, bool sign) {
         unsigned int m = fgetc(f);
         y = (y << 8) | m;
       }
-      return (sign) ? convert(n*8, y) : y;
+    return (sign) ? convert(n*8, y) : y;
     }
 }
 
@@ -67,7 +67,7 @@ void opDY(display *d, state *s, signed int x, int scalar) {
 }
 
 void opDT(display *d, signed int x) {
-    pause(d, x);
+    pause(d, x*10);
 }
 
 void opPEN(state *s) {
@@ -82,8 +82,7 @@ void opKEY(display *d) {
     key(d);
 }
 
-void opCOL(display *d, unsigned char x) {
-    printf("The colour is %d.\n", x);
+void opCOL(display *d, unsigned int x) {
     colour(d, x);
 }
 
@@ -117,23 +116,22 @@ void extra(FILE *f, unsigned char ch, display *d, state *s, extop lop, int lengt
 void loop(FILE *f) {
     state s = {0, 0, 0, 0, false};
     int i = 0;
-    int scalar = 5;
-    display *d = newDisplay("Window", 1280, 960);
+    int scalar = 1;
+    display *d = newDisplay("lawn.sketch", 1280, 960);
     unsigned char ch = fgetc(f);
-
     while (! feof(f)) {
       baseop op = opcode(ch);
       int length = oplength(ch);
       extop lop = lopcode(ch);
       switch(op) {
         case DX:
-          opDX(&s, param(ch, 6, true));
+          opDX(&s, param(ch, true));
           break;
         case DY:
-          opDY(d, &s, param(ch, 6, true), scalar);
+          opDY(d, &s, param(ch, true), scalar);
           break;
         case DT:
-          opDT(d, param(ch, 6, false));
+          opDT(d, param(ch, false));
           break;
         case EXT:
           extra(f, ch, d, &s, lop, length, scalar);
