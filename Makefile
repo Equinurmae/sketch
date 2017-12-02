@@ -7,3 +7,4 @@ test:
 
 sketch:
 	gcc -std=c99 -pedantic -Wall -O3 sketch.c display.c -lSDL2 -o sketch
+	./sketch
