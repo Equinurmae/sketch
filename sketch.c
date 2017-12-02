@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 #include "display.h"
 
 struct state {
@@ -10,8 +11,8 @@ struct state {
 };
 
 typedef struct state state;
-typedef enum {DX, DY, DT, EXT};
-typedef enum {PEN = 3, CLEAR, KEY, COL};
+typedef enum baseop {DX, DY, DT, EXT} baseop;
+typedef enum extop {DXL, DYL, DTL, PEN, CLEAR, KEY, COL} extop;
 
 int opcode(unsigned char x) {
     return (x >> 6);
@@ -25,60 +26,117 @@ int lopcode(unsigned char x) {
     return (x & 0x0f);
 }
 
-int param(unsigned char x) {
-    unsigned int y = x & 0x3f;
+signed int convert(int n, unsigned int y) {
     signed int c = y;
-    int msb = (x >> 5) & 1;
+    int msb = (y >> (n-1)) & 1;
     if (msb == 1) {
-      c = -32 + (y-32);
+      c = -pow(2, n-1) + (y-pow(2, n-1));
     }
     return c;
 }
 
-void opDX(state *s, unsigned char x) {
-    s->x += param(x);
+//sign = true if the operand is supposed to be signed
+int param(unsigned char x, int n, bool sign) {
+    unsigned int y = x & 0x3f;
+    return (sign) ? convert(6, y) : y;
 }
 
-void opDY(display *d, state *s, unsigned char x, int scalar) {
-    s->y += param(x);
+//sign = true if the operand is supposed to be signed
+int lparam (FILE *f, unsigned char x, int n, bool sign) {
+    if (n == 0) return 0;
+    else {
+      unsigned int y = fgetc(f);
+      if (n == 3) n = 4;
+      for (int i = 0; i < n-1; i++) {
+        unsigned int m = fgetc(f);
+        y = (y << 8) | m;
+      }
+      return (sign) ? convert(n*8, y) : y;
+    }
+}
+
+void opDX(state *s, signed int x) {
+    s->x += x;
+}
+
+void opDY(display *d, state *s, signed int x, int scalar) {
+    s->y += x;
     if (s->pen_down) line(d, s->xp, s->yp, scalar*s->x, scalar*s->y);
     s->xp = scalar*s->x;
     s->yp = scalar*s->y;
 }
 
-void opDT(display *d, unsigned char x) {
-    pause(d, param(x));
+void opDT(display *d, signed int x) {
+    pause(d, x);
 }
 
 void opPEN(state *s) {
     s->pen_down = ! s->pen_down;
 }
 
+void opCLEAR(display *d) {
+    clear(d);
+}
+
+void opKEY(display *d) {
+    key(d);
+}
+
+void opCOL(display *d, unsigned char x) {
+    printf("The colour is %d.\n", x);
+    colour(d, x);
+}
+
+void extra(FILE *f, unsigned char ch, display *d, state *s, extop lop, int length, int scalar) {
+    switch (lop) {
+      case DXL:
+        opDX(s, lparam(f, ch, length, true));
+        break;
+      case DYL:
+        opDY(d, s, lparam(f, ch, length, true), scalar);
+        break;
+      case DTL:
+        opDT(d, lparam(f, ch, length, false));
+        break;
+      case PEN:
+        opPEN(s);
+        break;
+      case CLEAR:
+        opCLEAR(d);
+        break;
+      case KEY:
+        opKEY(d);
+        break;
+      case COL:
+        opCOL(d, lparam(f, ch, length, false));
+        break;
+    }
+}
+
 //does magic
 void loop(FILE *f) {
     state s = {0, 0, 0, 0, false};
     int i = 0;
-    int scalar = 10;
+    int scalar = 5;
     display *d = newDisplay("Window", 1280, 960);
     unsigned char ch = fgetc(f);
 
     while (! feof(f)) {
-      int op = opcode(ch);
+      baseop op = opcode(ch);
+      int length = oplength(ch);
+      extop lop = lopcode(ch);
       switch(op) {
         case DX:
-          opDX(&s, ch);
+          opDX(&s, param(ch, 6, true));
           break;
         case DY:
-          opDY(d, &s, ch, scalar);
+          opDY(d, &s, param(ch, 6, true), scalar);
           break;
         case DT:
-          opDT(d, ch);
+          opDT(d, param(ch, 6, false));
           break;
         case EXT:
-          opPEN(&s);
-          int length = oplength(ch);
-          int lop = lopcode(ch);
-          printf("Length is %d and lopcode is %d\n", length, lop);
+          extra(f, ch, d, &s, lop, length, scalar);
           break;
       }
       ch = fgetc(f);
