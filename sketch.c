@@ -1,4 +1,4 @@
-//prints out the bytes in a file in hex
+//the sketch assignment
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
